@@ -1,0 +1,42 @@
+keys:
+
+dog
+is
+cute
+[1,1,1]
+[2,2,2]
+[3,3,3]
+          this is queries:
+[1,1,1]   [1],[2],[3]
+[2,2,2] x [1],[2],[3]
+[3,3,3]   [1],[2],[3]
+
+
+
+
+my state
+[1,1,1]
+rooms
+[1,1,1]
+[2,2,2]
+[3,3,3]
+
+(s * Ms) x (r * Mr)
+[11, 11, 12, 13]
+
+[30,1,1] x ([20,1,1] * [-1,-1,1]) = [10,0,2]
+
+Can be interesting to play with more flat list of parameters.
+Player can choose set of 2 parameters for attention.
+
+[1,1,1,0,0,0] - my stats
+[0,0,0,1,1,1] - room stats
+if we multiply them, we get my stats with room - [1,1,1,1,1,1]
+
+[0, 1, 0.8]
+[1, 1, 0.5]
+[1, 2, 1]
+[2, 1, 0.3]
+[2, 2, 0]
+[3, 1, 1]
+[3, 2, 1]
