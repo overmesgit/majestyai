@@ -1,7 +1,7 @@
 import time
 from collections import Counter
 
-from v3_multi_nets.areas import Hero, Room, Rest, Home, Mine, WorldModel
+from v4_memory.areas import Hero, Room, Rest, Home, Mine, WorldModel
 
 
 class World:
@@ -19,13 +19,13 @@ class World:
         self.rooms[id(room)] = room
         room = Mine()
         self.rooms[id(room)] = room
-        self.hero = Hero(100, 1, 1)
+        self.hero = Hero.new_hero()
         self.hero_history = []
         self.data_file = open(f'stat/{time.time()}.txt', 'w')
         self.data_file.write('turn,gold\n')
 
     def add_monster(self):
-        room = Room()
+        room = Room.random_room()
         self.rooms[id(room)] = room
 
     def gold_per_turn(self):

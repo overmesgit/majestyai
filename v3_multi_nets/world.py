@@ -13,9 +13,9 @@ class World:
         for i in range(3):
             self.add_monster()
 
-        room = Rest()
+        room = Rest.random_rest()
         self.rooms[id(room)] = room
-        room = Home()
+        room = Home.random_rest()
         self.rooms[id(room)] = room
         room = Mine()
         self.rooms[id(room)] = room
@@ -25,7 +25,7 @@ class World:
         self.data_file.write('turn,gold\n')
 
     def add_monster(self):
-        room = Room()
+        room = Room.random_room()
         self.rooms[id(room)] = room
 
     def gold_per_turn(self):

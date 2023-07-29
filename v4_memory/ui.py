@@ -1,9 +1,9 @@
 import arcade
 import random
 
-from v3_multi_nets.areas import Room, Rest, Home, Mine
-from v3_multi_nets.ui_class import HeroS, MonsterS, RestS
-from v3_multi_nets.world import World
+from v4_memory.areas import Room, Rest, Home, Mine
+from v4_memory.ui_class import HeroS, MonsterS, RestS
+from v4_memory.world import World
 
 # Constants
 SCREEN_WIDTH = 800

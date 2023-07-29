@@ -2,9 +2,9 @@ import dataclasses
 from copy import copy
 from random import randint
 
-from sklearn.cluster import MiniBatchKMeans
+from sklearn.metrics import mean_squared_error
 
-from v3_multi_nets.model import GenericModel, StateModel
+from v4_memory.model import GenericModel, StateModel
 
 
 class Base:
@@ -27,20 +27,17 @@ class Base:
 
 @dataclasses.dataclass
 class Room(Base):
-    hp: int = 1
-    gold: int = 1
+    hp: float = 1
+    gold: float = 1
 
     @classmethod
     def random_room(cls):
-        return Room(randint(10, 99), randint(0, 5))
-
-    def to_norm_array(self):
-        return [self.hp / 100, self.gold / 5]
+        return Room(randint(10, 99) / 100, randint(0, 5) / 100)
 
     def to_array(self):
         return [self.hp, self.gold]
 
-    def process(self, hero):
+    def process(self, hero: 'Hero'):
         old_room = copy(self)
         old_hero = copy(hero)
         if self.hp < hero.hp:
@@ -51,42 +48,40 @@ class Room(Base):
             self.gold = 0
         else:
             self.hp = max(self.hp - hero.hp / 2, 0)
-            hero.gold = max(hero.gold - 3, 0)
+            hero.gold = max(hero.gold - 0.03, 0)
 
-        hero.hp = max(hero.hp - old_room.hp / 2, 0)
+        hero.hp = round(max(hero.hp - old_room.hp / 2, 0), 2)
+        hero.gold = round(hero.gold, 2)
         return old_room, old_hero
 
 
 @dataclasses.dataclass
 class Rest(Base):
-    hp: int = 1
-    cost = 1
+    hp: float = 1
+    cost = 0.01
     min_value = 50
     max_value = 100
 
     @classmethod
     def random_rest(cls):
-        return cls(randint(cls.min_value, cls.max_value))
+        return cls(randint(cls.min_value, cls.max_value) / 100)
 
     def to_array(self):
         return [self.hp]
-
-    def to_norm_array(self):
-        return [self.hp / 100]
 
     def process(self, hero):
         old_room = copy(self)
         old_hero = copy(hero)
         if hero.gold >= self.cost:
-            hero.hp = min(hero.hp + self.hp, 100)
+            hero.hp = min(hero.hp + self.hp, 1)
             hero.gold -= self.cost
-            self.hp = randint(self.min_value, self.max_value)
+            self.hp = randint(self.min_value, self.max_value) / 100
         return old_room, old_hero
 
 
 @dataclasses.dataclass
 class Home(Rest):
-    hp: int = 25
+    hp: float = 0.25
     cost = 0
     min_value = 10
     max_value = 50
@@ -94,7 +89,7 @@ class Home(Rest):
 
 @dataclasses.dataclass
 class Mine(Base):
-    hp: int = 10
+    hp: int = 0.1
 
     def to_array(self):
         return []
@@ -105,9 +100,9 @@ class Mine(Base):
     def process(self, hero):
         old_room = copy(self)
         old_hero = copy(hero)
-        if hero.hp >= 10:
-            hero.hp -= 10
-            hero.gold += 1
+        if hero.hp >= self.hp:
+            hero.hp -= self.hp
+            hero.gold += 0.01
         return old_room, old_hero
 
 
@@ -117,52 +112,62 @@ def normalize(value, min_val, max_val):
 
 class WorldModel:
     def __init__(self):
-        self.state_model = StateModel(3, 1)
+        self.state_model = StateModel(3 + 3, 1)
 
-        self.long_memory = []
-
-        self.clusters = 10
-        self.kmeans = MiniBatchKMeans(n_clusters=self.clusters, batch_size=10)
-        for i in range(self.clusters):
-            self.long_memory.append(StateModel(3, 1, rate=0.001))
+        self.state_memory = {
+            Room: [],
+            Rest: [],
+            Home: [],
+            Mine: [],
+        }
 
         self.room_to_model = {
-            Room: GenericModel(3 + 2, 3),
-            Rest: GenericModel(3 + 1, 3),
-            Home: GenericModel(3 + 1, 3),
+            Room: GenericModel(3 + 2, 3 + 2),
+            Rest: GenericModel(3 + 1, 3 + 1),
+            Home: GenericModel(3 + 1, 3 + 1),
             Mine: GenericModel(3, 3),
         }
 
-        self.fitted = False
-        # self.state_model.load_state_dict(torch.load('state_model.pth'))
-        # self.state_model.eval()
-        self.memory = []
+    def search_memory(self, hero, room) -> list:
+        memory_rooms = self.state_memory[type(room)]
+        min_state = (100, None)
+        for m in memory_rooms:
+            mean = mean_squared_error(hero + room, m[0])
+            if mean < min_state[0]:
+                min_state = (mean, m)
+        return min_state[1]
 
     def predict(self, hero, rooms: dict):
         all_rooms = []
         for room in rooms.values():
             pred = self.room_to_model[type(room)].predict(hero + room)
-            diff = Hero(*pred[:3].tolist())
-            short_weight = self.state_model.predict(diff.to_array())
-            long_mem, label = (0,), None
-            if self.fitted:
-                label = self.kmeans.predict([diff.to_norm_array()])[0]
-                long_mem = self.long_memory[label].predict(diff.to_array())
+            new_hero = Hero(*pred[:3].tolist())
+            # how to make memory smaller
+            memory_hero_room = self.search_memory(hero, room)
+            long_mem = 0
+            if memory_hero_room:
+                avg = [a + b / 2 for a, b in zip(pred[:3].tolist(), memory_hero_room[1][:3])]
+                new_hero = Hero(*avg)
+                long_mem = memory_hero_room[2]
 
-            weight = (0.5 * short_weight[0], 0.5 * long_mem[0])
+            diff = hero.diff(new_hero)
+            short_weight = self.state_model.predict(hero + diff)
+            label = None
+
+            weight = (0.5 * short_weight[0], 0.5 * long_mem)
             all_rooms.append([weight, label, pred, room])
+
         return all_rooms
 
     def train_once(self, predicted, hero, room, new_hero, new_room):
-        diff_h = hero.diff(new_hero)
-        loss = self.room_to_model[type(room)].train_once(hero + room, diff_h.to_array())
+        loss = self.room_to_model[type(room)].train_once(hero + room, new_hero + new_room)
         state_loss = self.train_state(predicted, hero, room, new_hero, new_room)
         return loss, state_loss
 
     def train_state(self, predicted, hero, room, new_hero, new_room):
         # if cool experience update stat model
-        health = normalize(new_hero.hp - hero.hp, -100, 100)
-        gold = normalize(new_hero.gold - hero.gold, -5, 5)
+        health = normalize(new_hero.hp - hero.hp, -1, 1)
+        gold = normalize(new_hero.gold - hero.gold, -1, 1)
 
         if new_hero.hp == 0:
             weight = 0
@@ -174,65 +179,23 @@ class WorldModel:
         diff = hero.diff(new_hero)
         print(f"Weight: {weight} {health} {gold}")
 
-        self.memory.append((weight, hero, diff))
-        if len(self.memory) > self.clusters:
-            self.kmeans.partial_fit([d.to_norm_array() for _, h, d in self.memory])
-            self.fitted = True
-            self.memory = []
-
-        if self.fitted:
-            label = self.kmeans.predict([diff.to_norm_array()])[0]
-            print(f"Label {label}")
-            self.long_memory[0].train_once(diff.to_array(), [weight])
+        self.state_memory[type(room)].append((hero + room, new_hero + new_room, weight))
 
         # boredom to prevent stack in the same place
         # may be only gather uniq states in long memory
         # 0.5 memory + 0.5 prediction
-        return self.state_model.train_once(diff.to_array(), [weight])
-
-    def some_memory(self):
-        pass
-
-        # self.memory.append((weight, (hero, diff)))
-        # if len(self.memory) > 5:
-        #     max_mem = max(self.memory[:10], key=lambda w: w[0])
-        #     min_mem = min(self.memory[:10], key=lambda w: w[0])
-        #     print(max_mem, min_mem)
-        #     # self.state_model = StateModel(6, 1)
-        #     for (w, (h, d)) in [max_mem, min_mem]:
-        #         # if (d.hp, d.gold) not in self.diff_memory or abs(weight - predicted) > 0.1:
-        #         # self.diff_memory[(d.hp, d.gold)] = True
-        #         self.long_memory.train_once(h + d, [w])
-        #         # self.long_memory.train_once(h + d, [w])
-        #         # self.state_model.train_once(h + d, [w])
-        #     self.memory = []
-
-        # for (w, (h, d)) in self.top_actions + self.worst_actions:
-        #     self.state_model.train_once(h + d, [w])
-
-        # if len(self.top_actions) < 4 or any([weight > w for (w, _) in self.top_actions]):
-        #     self.top_actions.append((weight, (hero, diff)))
-        #     if len(self.top_actions) > 4:
-        #         self.top_actions = self.top_actions[1:]
-        #
-        # if len(self.worst_actions) < 4 or any([weight < w for (w, _) in self.worst_actions]):
-        #     self.worst_actions.append((weight, (hero, diff)))
-        #     if len(self.worst_actions) > 4:
-        #         self.worst_actions = self.worst_actions[1:]
+        return self.state_model.train_once(hero + diff, [weight])
 
 
 @dataclasses.dataclass
 class Hero(Base):
-    hp: int
+    hp: float
     level: float
-    gold: int
-    normalized: bool = False
+    gold: float
 
-    def to_norm_array(self):
-        if not self.normalized:
-            return [self.hp / 100, self.level / 100, self.gold / 5]
-        else:
-            return self.to_array()
+    @classmethod
+    def new_hero(cls):
+        return Hero(1, 1, 0)
 
     def to_array(self):
         return [self.hp, self.level, self.gold]

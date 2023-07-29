@@ -1,0 +1,8 @@
+make exploration much harder
+multiple params: area type, type of tracks, size of tracks, number of tracks
+
+character than can predict enemy strength
+
+some
+
+
