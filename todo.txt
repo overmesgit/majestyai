@@ -3,6 +3,20 @@ multiple params: area type, type of tracks, size of tracks, number of tracks
 
 character than can predict enemy strength
 
-some
+some parameters are more important than others for different enemies
+area type may affect parameters
 
+there should be some complexity into it, but not that hard
 
+how to train lumberjack:
+find right equipment
+find good place (forest/desert/mountain/flat)
+find type of tree
+find good tree (size, quality)
+cut the tree
+how to sell
+monsters
+
+how to train miner/warrior
+blacksmith
+tavern/cook

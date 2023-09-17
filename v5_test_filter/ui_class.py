@@ -55,7 +55,7 @@ class RestS(arcade.Sprite):
 
     def draw(self, *args, **kwargs):
         super().draw(*args, **kwargs)
-        text = f"{self.data.hp:.0f}"
+        text = f"{self.data.hp:.1f}"
         x = self.center_x
         y = self.center_y
         color = arcade.color.RED
