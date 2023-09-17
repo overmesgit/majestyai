@@ -100,8 +100,8 @@ class WeightNet(nn.Module):
         super().__init__()
         self.fc = nn.Linear(8, 8)
         with torch.no_grad():
-            self.fc.weight.fill_(0.1)
-            self.fc.bias.fill_(0.1)
+            self.fc.weight.fill_(1)
+            self.fc.bias.fill_(0)
 
         self.criterion = nn.MSELoss()
         self.optimizer = optim.Adam(self.parameters(), lr=0.001)

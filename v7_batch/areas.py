@@ -5,7 +5,7 @@ from random import randint
 
 from sklearn.metrics import mean_squared_error
 
-from v5_test_filter.model import GenericModel, StateModel, CombinedNetwork
+from v7_batch.model import GenericModel, StateModel
 
 
 class Base:
@@ -91,7 +91,7 @@ class Home(Rest):
 
 @dataclasses.dataclass
 class Mine(Base):
-    hp: float = 0.1
+    hp: float = 0.2
     gold: float = 0.01
 
     def to_array(self):
@@ -114,51 +114,80 @@ def normalize(value, min_val, max_val):
 
 
 class WorldModel:
+    @dataclasses.dataclass
+    class MemoState:
+        hero_and_diff: list
+        weight: list
+
+    @dataclasses.dataclass
+    class Memo:
+        original: list
+        diff: list
+
+    @dataclasses.dataclass
+    class Prediction:
+        weight: float
+        room_pred: list
+        room: Base
+        params: dict
+
     def __init__(self):
         self.state_model = StateModel(3 + 3, 1)
-        self.room_model = CombinedNetwork()
-        # health, lvl, gold, room, gold, loose, heal, cost
-        self.data_file = open(f'stat/d{time.time()}.txt', 'w')
+        self.overall_model = GenericModel(8, 16, 0.001)
 
-    def predict(self, hero, rooms: dict):
+        # health, lvl, gold, room, gold, loose, heal, cost
+        self.room_memory: list[WorldModel.Memo] = []
+        self.state_memory: list[WorldModel.MemoState] = []
+        self.memo_recount = 0
+        # self.data_file = open(f'stat/d{time.time()}.txt', 'w')
+
+    def add_memory(self, memo: 'Memo'):
+        self.room_memory.append(memo)
+
+    def predict(self, hero, rooms: dict) -> list[Prediction]:
         all_rooms = []
         for room in rooms.values():
-            pred = self.room_model.predict(hero + room)
-            diff = Hero(*pred[2][:3])
+            pred = self.overall_model.predict(hero + room)
+            diff = Hero(*pred[:3].tolist())
 
-            short_weight = self.state_model.predict(hero + diff)
-            label = None
+            state_pred = self.state_model.predict(hero + diff)
 
-            all_rooms.append([short_weight.item(), label, pred, room])
+            state_weight = sum(0.5 * state_pred, 0)
+
+            all_rooms.append(
+                WorldModel.Prediction(state_weight, pred, room,
+                                      {'net': state_pred.item()}))
 
         return all_rooms
 
     def train_once(self, predicted, hero, room, new_hero, new_room):
         original_state = hero + room
         new_state = new_hero + new_room
-        diff = [b - a for a, b in zip(original_state, new_state)]
-        self.data_file.write(f"{','.join(map(str,original_state))}, {','.join(map(str,diff))}\n")
+        diff = [new_st - orig_st for orig_st, new_st in zip(original_state, new_state)]
 
-        loss = self.room_model.train_once(original_state, diff)
-        state_loss = self.train_state(predicted, hero, room, new_hero, new_room)
+        self.add_memory(WorldModel.Memo(original_state, diff))
+        self.add_state_memory(hero, new_hero)
+
+        loss = 0
+        state_loss = 0
+        if self.room_memory and len(self.room_memory) % 10 == 0:
+            loss = self.overall_model.train_once([m.original for m in self.room_memory],
+                                                 [m.diff for m in self.room_memory])
+
+            state_loss = self.state_model.train_once([m.hero_and_diff for m in self.state_memory],
+                                                     [m.weight for m in self.state_memory])
         return loss, state_loss
 
-    def train_state(self, predicted, hero, room, new_hero, new_room):
-        # if cool experience update stat model
-        health = normalize(new_hero.hp - hero.hp, -1, 1)
-        gold = normalize(new_hero.gold - hero.gold, -1, 1)
-
+    def add_state_memory(self, hero, new_hero: 'Hero'):
         if new_hero.hp == 0:
             weight = 0
         elif new_hero.hp == hero.hp and new_hero.gold <= hero.gold:
             weight = 0
         else:
-            weight = 0.5 * health + 0.5 * gold
+            weight = 0.5 * new_hero.hp + 0.5 * new_hero.gold
 
         diff = hero.diff(new_hero)
-        print(f"Weight: {weight} {health} {gold}")
-
-        return self.state_model.train_once(hero + diff, [weight])
+        self.state_memory.append(WorldModel.MemoState(hero + diff, [weight]))
 
 
 @dataclasses.dataclass

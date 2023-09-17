@@ -52,14 +52,15 @@ class GenericModel(nn.Module):
         self.optimizer.zero_grad()
         return self(torch.tensor(input_data, dtype=torch.float32))
 
-    def train_once(self, input_data, target_data):
-        self.optimizer.zero_grad()
+    def train_once(self, input_data, target_data, lr=None):
+        optimizer = self.optimizer
+        optimizer.zero_grad()
         predictions = self(torch.tensor(input_data, dtype=torch.float32))
 
         target = torch.tensor(target_data, dtype=torch.float32)
         total_loss = self.criterion(predictions, target)
         total_loss.backward()
-        self.optimizer.step()
+        optimizer.step()
         return total_loss
 
     def forward(self, x):

@@ -1,7 +1,7 @@
 import time
 from collections import Counter
 
-from v6_simple.areas import Hero, Room, Rest, Home, Mine, WorldModel
+from v7_batch.areas import Hero, Room, Rest, Home, Mine, WorldModel
 
 
 class World:
@@ -10,6 +10,7 @@ class World:
     def __init__(self):
         self.turn = 0
         self.rooms = dict()
+        self.rooms_turn = dict()
         for i in range(3):
             self.add_monster()
 
@@ -24,9 +25,10 @@ class World:
         self.data_file = open(f'stat/{time.time()}.txt', 'w')
         self.data_file.write('turn,gold\n')
 
-    def add_monster(self):
+    def add_monster(self, turn=0):
         room = Room.random_room()
         self.rooms[id(room)] = room
+        self.rooms_turn[id(room)] = turn
 
     def gold_per_turn(self):
         if self.hero_history:
@@ -63,9 +65,13 @@ class World:
         if room.hp <= 0:
             del self.rooms[id(room)]
 
-        counter = Counter([type(r) for r in self.rooms.values()])
-        if counter[Room] < 5:
-            self.add_monster()
+        remain_rooms = [r for r in self.rooms.values() if type(r) == Room]
+        if len(remain_rooms) < 5:
+            self.add_monster(self.turn)
+
+        for r in remain_rooms:
+            if self.turn - self.rooms_turn[id(r)] > 10:
+                del self.rooms[id(r)]
 
         print(f'Hero: {self.hero} Loss: {loss}')
         return room, self.hero, self.rooms

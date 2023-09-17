@@ -1,4 +1,5 @@
 import dataclasses
+import time
 from copy import copy
 from random import randint
 
@@ -89,7 +90,7 @@ class Home(Rest):
 
 @dataclasses.dataclass
 class Mine(Base):
-    hp: int = 0.1
+    hp: int = 0.3
 
     def to_array(self):
         return []
@@ -127,11 +128,12 @@ class WorldModel:
             Home: GenericModel(3 + 1, 3 + 1),
             Mine: GenericModel(3, 3),
         }
+        self.data_file = open(f'stat/d{time.time()}.txt', 'w')
 
     def search_memory(self, hero, room) -> list:
         memory_rooms = self.state_memory[type(room)]
         min_state = (100, None)
-        for m in memory_rooms:
+        for m in memory_rooms[-20:]:
             mean = mean_squared_error(hero + room, m[0])
             if mean < min_state[0]:
                 min_state = (mean, m)
@@ -160,6 +162,9 @@ class WorldModel:
         return all_rooms
 
     def train_once(self, predicted, hero, room, new_hero, new_room):
+        ori_arr = map(str, (hero + room))
+        new_arr = map(str, (new_hero + new_room))
+        self.data_file.write(f"{','.join(ori_arr)}, {','.join(new_arr)}\n")
         loss = self.room_to_model[type(room)].train_once(hero + room, new_hero + new_room)
         state_loss = self.train_state(predicted, hero, room, new_hero, new_room)
         return loss, state_loss
