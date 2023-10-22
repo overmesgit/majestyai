@@ -1,10 +1,11 @@
 import torch
 import torch.nn as nn
+from sklearn.preprocessing import StandardScaler
 from torch import optim
 
 
 class StateModel(nn.Module):
-    def __init__(self, input_size, output_size, hidden_size=32, rate=0.01):
+    def __init__(self, input_size, output_size, hidden_size=64, rate=0.01):
         super().__init__()
 
         self.fc = nn.Sequential(
@@ -12,19 +13,26 @@ class StateModel(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.ReLU(),
             nn.Linear(hidden_size, output_size),
-            # nn.Sigmoid(),
         )
 
         self.criterion = nn.MSELoss()
         self.optimizer = optim.Adam(self.parameters(), lr=rate)
+        self.scaler = None
 
     def predict(self, input_data):
         self.optimizer.zero_grad()
-        return self(torch.tensor(input_data, dtype=torch.float32))
+        input_data = [input_data]
+        if self.scaler:
+            input_data = self.scaler.transform(input_data)
+        return self(torch.FloatTensor(input_data))[0]
 
     def train_once(self, input_data, target_data):
-        X_train_tensor = torch.FloatTensor(input_data)
+        self.scaler = StandardScaler().fit(input_data)
+        X_train = self.scaler.transform(input_data)
+        X_train_tensor = torch.FloatTensor(X_train)
         y_train_tensor = torch.FloatTensor(target_data)
 
         loss = 0
@@ -46,34 +54,40 @@ class StateModel(nn.Module):
 
 
 class GenericModel(nn.Module):
-    def __init__(self, input_size, hidden=8, lr=0.001):
+    def __init__(self, input_size, hidden=64, lr=0.01):
         super().__init__()
 
         self.fc = nn.Sequential(
-            nn.Linear(input_size, 64),
+            nn.Linear(input_size, hidden),
             nn.ReLU(),
-            nn.Linear(64, 64),
+            nn.Linear(hidden, hidden),
             nn.ReLU(),
-            nn.Linear(64, 64),
+            nn.Linear(hidden, hidden),
             nn.ReLU(),
-            nn.Linear(64, 64),
+            nn.Linear(hidden, hidden),
             nn.ReLU(),
-            nn.Linear(64, input_size),
+            nn.Linear(hidden, input_size),
         )
 
         self.criterion = nn.MSELoss()
         self.optimizer = optim.Adam(self.parameters(), lr=lr)
+        self.scaler = None
 
     def predict(self, input_data):
         self.optimizer.zero_grad()
-        return self(torch.tensor(input_data, dtype=torch.float32))
+        input_data = [input_data]
+        if self.scaler:
+            input_data = self.scaler.transform(input_data)
+        return self(torch.FloatTensor(input_data))[0]
 
     def train_once(self, input_data, target_data):
-        X_train_tensor = torch.FloatTensor(input_data)
+        self.scaler = StandardScaler().fit(input_data)
+        X_train = self.scaler.transform(input_data)
+        X_train_tensor = torch.FloatTensor(X_train)
         y_train_tensor = torch.FloatTensor(target_data)
 
         loss = 0
-        epochs = 50
+        epochs = 100
         for epoch in range(epochs):
             self.optimizer.zero_grad()
             outputs = self(X_train_tensor)

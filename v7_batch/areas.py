@@ -109,6 +109,20 @@ class Mine(Base):
         return old_room, old_hero
 
 
+@dataclasses.dataclass
+class Hero(Base):
+    hp: float
+    level: float
+    gold: float
+
+    @classmethod
+    def new_hero(cls):
+        return Hero(1, 1, 0)
+
+    def to_array(self):
+        return [self.hp, self.level, self.gold]
+
+
 def normalize(value, min_val, max_val):
     return (value - min_val) / (max_val - min_val)
 
@@ -133,13 +147,13 @@ class WorldModel:
 
     def __init__(self):
         self.state_model = StateModel(3 + 3, 1)
-        self.overall_model = GenericModel(8, 16, 0.001)
-
         # health, lvl, gold, room, gold, loose, heal, cost
+        self.overall_model = GenericModel(8)
+
         self.room_memory: list[WorldModel.Memo] = []
         self.state_memory: list[WorldModel.MemoState] = []
         self.memo_recount = 0
-        # self.data_file = open(f'stat/d{time.time()}.txt', 'w')
+        self.data_file = open(f'stat/s{time.time()}.txt', 'w')
 
     def add_memory(self, memo: 'Memo'):
         self.room_memory.append(memo)
@@ -179,26 +193,16 @@ class WorldModel:
         return loss, state_loss
 
     def add_state_memory(self, hero, new_hero: 'Hero'):
+        diff = hero.diff(new_hero)
+        norm_gold = normalize(diff.gold, -0.05, 0.05)
+        norm_hp = normalize(diff.hp, -1, 1)
         if new_hero.hp == 0:
             weight = 0
         elif new_hero.hp == hero.hp and new_hero.gold <= hero.gold:
             weight = 0
         else:
-            weight = 0.5 * new_hero.hp + 0.5 * new_hero.gold
+            weight = 0.5 * norm_hp + 0.5 * norm_gold
 
-        diff = hero.diff(new_hero)
+        print(f'Weight: {weight} norm hp: {norm_hp} gp: {norm_gold}')
         self.state_memory.append(WorldModel.MemoState(hero + diff, [weight]))
-
-
-@dataclasses.dataclass
-class Hero(Base):
-    hp: float
-    level: float
-    gold: float
-
-    @classmethod
-    def new_hero(cls):
-        return Hero(1, 1, 0)
-
-    def to_array(self):
-        return [self.hp, self.level, self.gold]
+        self.data_file.write(f'{",".join(map(str, hero + diff))},{weight}\n')
