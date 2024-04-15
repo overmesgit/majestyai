@@ -28,3 +28,8 @@ Here are a couple more turns.
 ![mid4](https://github.com/overmesgit/majestyai/assets/2367946/733e670f-ba7c-4efa-b553-527bb7646861)
 
 The hero always chooses the right move. 👍
+
+Video:
+
+https://github.com/overmesgit/majestyai/assets/2367946/3b49c024-301a-4f7d-a6cc-554b6137c6e6
+
